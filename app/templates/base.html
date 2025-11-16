@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Windsurf账号池管理系统{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.css">
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <div class="sidebar-brand">
+            <i class="bi bi-key-fill"></i> Windsurf账号池
+        </div>
+        <ul class="sidebar-nav">
+            <li>
+                <a href="/admin" class="{% if request.url.path == '/admin' %}active{% endif %}">
+                    <i class="bi bi-speedometer2"></i>
+                    <span>仪表盘</span>
+                </a>
+            </li>
+            <li>
+                <a href="/admin/keys" class="{% if '/keys' in request.url.path %}active{% endif %}">
+                    <i class="bi bi-key"></i>
+                    <span>密钥管理</span>
+                </a>
+            </li>
+            <li>
+                <a href="/admin/accounts" class="{% if '/accounts' in request.url.path %}active{% endif %}">
+                    <i class="bi bi-people"></i>
+                    <span>账号管理</span>
+                </a>
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <a href="/admin/logout" class="logout-btn">
+                <i class="bi bi-box-arrow-right"></i> 退出登录
+            </a>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Vue 3 and Element Plus -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.11/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/element-plus@2.4.4/dist/index.full.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@element-plus/icons-vue@2.3.1/dist/index.iife.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

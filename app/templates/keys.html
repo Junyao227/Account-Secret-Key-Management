@@ -1,0 +1,652 @@
+{% extends "base.html" %}
+
+{% block title %}密钥管理 - Windsurf账号池管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title"><i class="bi bi-key"></i> 密钥管理</h1>
+</div>
+
+{% raw %}
+<div id="keyApp" v-cloak>
+    <!-- 筛选与操作 -->
+    <el-card class="box-card" style="margin-bottom: 16px;">
+        <template #header>
+            <div class="card-header">
+                <span><i class="bi bi-funnel"></i> 筛选与操作</span>
+                <div>
+                    <el-button type="primary" @click="handleCreate" :icon="Plus">创建密钥</el-button>
+                    <el-button @click="handleRefresh" :icon="Refresh">刷新</el-button>
+                    <el-dropdown trigger="click" style="margin-left: 8px;">
+                        <el-button>
+                            显示列<i class="el-icon-arrow-down el-icon--right"></i>
+                        </el-button>
+                        <template #dropdown>
+                            <el-dropdown-menu>
+                                <el-checkbox-group v-model="visibleColumns" @change="saveColumnPreference">
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="key_code">密钥代码</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="status">状态</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="key_type">类型</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="duration_days">有效期</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="created_at">创建时间</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="activated_at">激活时间</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="remaining_time">剩余时间</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="account_limit">账号配额</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="remaining_accounts">剩余可获取</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="request_count">请求次数</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="last_request_ip">最后请求IP</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="notes">备注</el-checkbox>
+                                    </div>
+                                </el-checkbox-group>
+                            </el-dropdown-menu>
+                        </template>
+                    </el-dropdown>
+                </div>
+            </div>
+        </template>
+        <el-form :inline="true" :model="searchForm" class="search-form">
+            <el-form-item label="搜索">
+                <el-input v-model="searchForm.search" placeholder="密钥代码" clearable style="width: 125px;"></el-input>
+            </el-form-item>
+            <el-form-item label="状态">
+                <el-select v-model="searchForm.status" placeholder="全部" clearable style="width: 90px;">
+                    <el-option label="未激活" value="inactive"></el-option>
+                    <el-option label="已激活" value="active"></el-option>
+                    <el-option label="已过期" value="expired"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="类型">
+                <el-select v-model="searchForm.key_type" placeholder="全部" clearable style="width: 100px;">
+                    <el-option label="有限额度" value="limited"></el-option>
+                    <el-option label="无限额度" value="unlimited"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="激活日期">
+                <el-date-picker
+                    v-model="dateRange"
+                    type="daterange"
+                    range-separator="-"
+                    start-placeholder="开始"
+                    end-placeholder="结束"
+                    value-format="YYYY-MM-DD"
+                    style="width: 220px;">
+                </el-date-picker>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary" @click="handleSearch">搜索</el-button>
+                <el-button @click="handleClear">清空</el-button>
+            </el-form-item>
+        </el-form>
+    </el-card>
+
+    <!-- 密钥列表 -->
+    <el-card class="box-card key-list-card">
+        <template #header>
+            <div class="card-header">
+                <div class="header-title"><i class="bi bi-list"></i> 密钥列表 <span style="color: #909399; font-size: 14px; font-weight: 400;">{{ keyCountText }}</span></div>
+                <div v-if="sortChips.length > 0" class="sort-chips" style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 13px; color: #909399;">当前排序：</span>
+                    <el-tag
+                        v-for="(chip, index) in sortChips"
+                        :key="index"
+                        closable
+                        @close="removeSort(chip.field)"
+                        style="margin-right: 4px;">
+                        {{ chip.label }} {{ chip.dir === 'asc' ? '升序' : '降序' }}
+                    </el-tag>
+                </div>
+            </div>
+        </template>
+
+        
+
+        <el-table
+            :data="keys"
+            v-loading="loading"
+            stripe
+            border
+            style="width: 100%">
+            <el-table-column v-if="visibleColumns.includes('key_code')" prop="key_code" label="密钥代码" min-width="180" align="center">
+                <template #default="scope">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <code style="font-size: 0.85rem;">{{ truncate(scope.row.key_code, 20) }}</code>
+                        <el-button link type="primary" :icon="CopyDocument" @click="copyKey(scope.row.key_code)" size="small"></el-button>
+                    </div>
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('status')" prop="status" label="状态" width="100" align="center">
+                <template #default="scope">
+                    <el-tag v-if="scope.row.status === 'active'" type="success">已激活</el-tag>
+                    <el-tag v-else-if="scope.row.status === 'expired'" type="danger">已过期</el-tag>
+                    <el-tag v-else type="info">未激活</el-tag>
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('key_type')" prop="key_type" label="类型" width="110" align="center">
+                <template #default="scope">
+                    <el-tag v-if="scope.row.key_type === 'unlimited'" type="warning" size="small">无限额度</el-tag>
+                    <el-tag v-else type="primary" size="small">有限额度</el-tag>
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('duration_days')" prop="duration_days" width="100" align="center">
+                <template #header>
+                    <div @click="handleColumnSort('duration_days', $event)" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <span>有效期</span>
+                        <span v-if="getSortIcon('duration_days') === 'asc'" style="color: #409EFF;">▲</span>
+                        <span v-else-if="getSortIcon('duration_days') === 'desc'" style="color: #409EFF;">▼</span>
+                        <span v-else style="color: #C0C4CC;">⇅</span>
+                    </div>
+                </template>
+                <template #default="scope">
+                    {{ scope.row.duration_days }} 天
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('created_at')" prop="created_at" min-width="170" align="center">
+                <template #header>
+                    <div @click="handleColumnSort('created_at', $event)" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <span>创建时间</span>
+                        <span v-if="getSortIcon('created_at') === 'asc'" style="color: #409EFF;">▲</span>
+                        <span v-else-if="getSortIcon('created_at') === 'desc'" style="color: #409EFF;">▼</span>
+                        <span v-else style="color: #C0C4CC;">⇅</span>
+                    </div>
+                </template>
+                <template #default="scope">
+                    {{ formatDateTime(scope.row.created_at) }}
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('activated_at')" prop="activated_at" min-width="170" align="center">
+                <template #header>
+                    <div @click="handleColumnSort('activated_at', $event)" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <span>激活时间</span>
+                        <span v-if="getSortIcon('activated_at') === 'asc'" style="color: #409EFF;">▲</span>
+                        <span v-else-if="getSortIcon('activated_at') === 'desc'" style="color: #409EFF;">▼</span>
+                        <span v-else style="color: #C0C4CC;">⇅</span>
+                    </div>
+                </template>
+                <template #default="scope">
+                    {{ formatDateTime(scope.row.activated_at) }}
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('remaining_time')" prop="remaining_time" width="120" align="center">
+                <template #header>
+                    <div @click="handleColumnSort('remaining_time', $event)" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <span>剩余时间</span>
+                        <span v-if="getSortIcon('remaining_time') === 'asc'" style="color: #409EFF;">▲</span>
+                        <span v-else-if="getSortIcon('remaining_time') === 'desc'" style="color: #409EFF;">▼</span>
+                        <span v-else style="color: #C0C4CC;">⇅</span>
+                    </div>
+                </template>
+                <template #default="scope">
+                    <span :style="{color: getRemainingTimeColor(scope.row.remaining_time)}">
+                        {{ scope.row.remaining_time || '-' }}
+                    </span>
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('account_limit')" prop="account_limit" width="110" align="center">
+                <template #header>
+                    <div @click="handleColumnSort('account_limit', $event)" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <span>账号配额</span>
+                        <span v-if="getSortIcon('account_limit') === 'asc'" style="color: #409EFF;">▲</span>
+                        <span v-else-if="getSortIcon('account_limit') === 'desc'" style="color: #409EFF;">▼</span>
+                        <span v-else style="color: #C0C4CC;">⇅</span>
+                    </div>
+                </template>
+                <template #default="scope">
+                    <el-tag v-if="scope.row.account_limit === 0" size="small" type="info">不限</el-tag>
+                    <span v-else>{{ scope.row.account_limit }}</span>
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('remaining_accounts')" prop="remaining_accounts" width="130" align="center">
+                <template #header>
+                    <div @click="handleColumnSort('remaining_accounts', $event)" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <span>剩余可获取</span>
+                        <span v-if="getSortIcon('remaining_accounts') === 'asc'" style="color: #409EFF;">▲</span>
+                        <span v-else-if="getSortIcon('remaining_accounts') === 'desc'" style="color: #409EFF;">▼</span>
+                        <span v-else style="color: #C0C4CC;">⇅</span>
+                    </div>
+                </template>
+                <template #default="scope">
+                    <el-tag v-if="scope.row.remaining_accounts === -1 || scope.row.remaining_accounts === null" size="small" type="info">不限</el-tag>
+                    <span v-else>{{ scope.row.remaining_accounts }}</span>
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('request_count')" prop="request_count" width="100" align="center">
+                <template #header>
+                    <div @click="handleColumnSort('request_count', $event)" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <span>请求次数</span>
+                        <span v-if="getSortIcon('request_count') === 'asc'" style="color: #409EFF;">▲</span>
+                        <span v-else-if="getSortIcon('request_count') === 'desc'" style="color: #409EFF;">▼</span>
+                        <span v-else style="color: #C0C4CC;">⇅</span>
+                    </div>
+                </template>
+                <template #default="scope">
+                    {{ scope.row.request_count || 0 }}
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('last_request_ip')" prop="last_request_ip" label="最后请求IP" min-width="140" align="center">
+                <template #default="scope">
+                    {{ scope.row.last_request_ip || '-' }}
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('notes')" prop="notes" label="备注" min-width="120" align="center">
+                <template #default="scope">
+                    {{ scope.row.notes || '-' }}
+                </template>
+            </el-table-column>
+        </el-table>
+
+        <div style="margin-top: 16px; display: flex; justify-content: center;">
+            <el-pagination
+                v-model:current-page="currentPage"
+                :page-size="pageSize"
+                :total="total"
+                layout="prev, pager, next, total"
+                @current-change="loadKeys"
+            />
+        </div>
+    </el-card>
+
+    <!-- 创建密钥对话框 -->
+    <el-dialog v-model="createDialogVisible" title="创建密钥" width="600px">
+        <el-form :model="createForm" label-width="120px">
+            <el-form-item label="密钥类型">
+                <el-radio-group v-model="createForm.key_type" @change="handleKeyTypeChange">
+                    <el-radio label="limited">有限额度</el-radio>
+                    <el-radio label="unlimited">无限额度</el-radio>
+                </el-radio-group>
+                <div style="color: #909399; font-size: 12px; margin-top: 4px;">
+                    <div v-if="createForm.key_type === 'limited'">✓ 账号总数有限，不限制获取频率</div>
+                    <div v-else>✓ 账号数量无限，每5分钟只能获取一次</div>
+                </div>
+            </el-form-item>
+            <el-form-item label="数量">
+                <el-input-number v-model="createForm.count" :min="1" :max="100" style="width: 100%;"></el-input-number>
+            </el-form-item>
+            <el-form-item label="有效期（天）">
+                <el-input-number v-model="createForm.duration_days" :min="1" style="width: 100%;"></el-input-number>
+            </el-form-item>
+            <el-form-item label="账号配额" v-if="createForm.key_type === 'limited'">
+                <el-input-number v-model="createForm.account_limit" :min="1" style="width: 100%;"></el-input-number>
+                <div style="color: #909399; font-size: 12px; margin-top: 4px;">有限额度必须设置账号总数</div>
+            </el-form-item>
+            <el-form-item label="备注">
+                <el-input v-model="createForm.notes" placeholder="可选"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="createDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="handleCreateSubmit" :loading="creating">创建</el-button>
+        </template>
+    </el-dialog>
+
+    <!-- 密钥预览对话框 -->
+    <el-dialog v-model="previewDialogVisible" title="密钥创建成功" width="600px">
+        <el-alert type="success" :closable="false" style="margin-bottom: 16px;">
+            成功创建 <strong>{{ createdCount }}</strong> 个密钥
+        </el-alert>
+        <el-input
+            v-model="keyPreview"
+            type="textarea"
+            :rows="10"
+            readonly
+            style="font-family: monospace;">
+        </el-input>
+        <template #footer>
+            <el-button @click="copyKeys" :icon="CopyDocument">复制全部</el-button>
+            <el-button @click="downloadKeysTxt" :icon="Download">导出TXT</el-button>
+            <el-button @click="previewDialogVisible = false">关闭</el-button>
+        </template>
+    </el-dialog>
+</div>
+{% endraw %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+const { ElMessage } = ElementPlus;
+
+createApp({
+    setup() {
+        // 图标
+        const Plus = ElementPlusIconsVue.Plus;
+        const Refresh = ElementPlusIconsVue.Refresh;
+        const CopyDocument = ElementPlusIconsVue.CopyDocument;
+        const Download = ElementPlusIconsVue.Download;
+
+        // 数据
+        const loading = ref(false);
+        const keys = ref([]);
+        const currentPage = ref(1);
+        const pageSize = ref(10);
+        const total = ref(0);
+        const currentSort = ref([{ field: 'created_at', dir: 'desc' }]);
+
+        // 搜索表单
+        const searchForm = ref({
+            search: '',
+            status: '',
+            key_type: ''
+        });
+        const dateRange = ref([]);
+
+        // 显示列
+        const visibleColumns = ref([
+            'key_code', 'status', 'key_type', 'duration_days', 'created_at', 'activated_at',
+            'remaining_time', 'account_limit', 'remaining_accounts', 
+            'request_count', 'last_request_ip', 'notes'
+        ]);
+
+        // 创建对话框
+        const createDialogVisible = ref(false);
+        const creating = ref(false);
+        const createForm = ref({
+            key_type: 'limited',
+            count: 10,
+            duration_days: 30,
+            account_limit: 5,
+            notes: ''
+        });
+
+        // 预览对话框
+        const previewDialogVisible = ref(false);
+        const keyPreview = ref('');
+        const createdCount = ref(0);
+
+        // 计算属性
+        const keyCountText = computed(() => {
+            if (total.value === 0) return '';
+            const statusText = searchForm.value.status ? 
+                (searchForm.value.status === 'active' ? '已激活' : 
+                 searchForm.value.status === 'inactive' ? '未激活' : '已过期') : '全部';
+            return `${statusText} ${total.value} 个`;
+        });
+
+        const sortChips = computed(() => {
+            const labels = {
+                duration_days: '有效期',
+                created_at: '创建时间',
+                activated_at: '激活时间',
+                remaining_time: '剩余时间',
+                account_limit: '账号配额',
+                remaining_accounts: '剩余可获取',
+                request_count: '请求次数'
+            };
+            // 确保 currentSort 是数组
+            if (!Array.isArray(currentSort.value)) {
+                return [];
+            }
+            return currentSort.value.map(s => ({
+                field: s.field,
+                label: labels[s.field] || s.field,
+                dir: s.dir
+            }));
+        });
+
+        // 排序 Chips 展示（最多 1 个，其余用 +N）
+        const sortChipsDisplay = computed(() => sortChips.value.slice(0, 1));
+        const extraSortCount = computed(() => Math.max(sortChips.value.length - 1, 0));
+
+        // 方法
+        const loadKeys = async () => {
+            loading.value = true;
+            try {
+                const params = {
+                    page: currentPage.value,
+                    page_size: pageSize.value
+                };
+
+                if (searchForm.value.search) params.search = searchForm.value.search;
+                if (searchForm.value.status) params.status = searchForm.value.status;
+                if (searchForm.value.key_type) params.key_type = searchForm.value.key_type;
+                if (dateRange.value && dateRange.value.length === 2) {
+                    params.activated_from = dateRange.value[0];
+                    params.activated_to = dateRange.value[1];
+                }
+                if (currentSort.value.length > 0) {
+                    params.sort = currentSort.value.map(s => `${s.field}:${s.dir}`).join(',');
+                }
+
+                // 加入时间戳避免缓存
+                params.ts = Date.now();
+                const response = await axios.get('/admin/api/keys/list', { params });
+                
+                // 确保 keys 是数组
+                keys.value = Array.isArray(response.data.keys) ? response.data.keys : [];
+                total.value = response.data.total || 0;
+            } catch (error) {
+                ElMessage.error('加载失败: ' + (error.response?.data?.detail || error.message));
+            } finally {
+                loading.value = false;
+            }
+        };
+
+        const handleSearch = () => {
+            currentPage.value = 1;
+            loadKeys();
+        };
+
+        const handleRefresh = () => {
+            currentPage.value = 1;
+            loadKeys();
+        };
+
+        const handleClear = () => {
+            searchForm.value = { search: '', status: '', key_type: '' };
+            dateRange.value = [];
+            currentPage.value = 1;
+            loadKeys();
+        };
+
+        const handleCreate = () => {
+            createDialogVisible.value = true;
+        };
+
+        const handleKeyTypeChange = (type) => {
+            // 切换类型时自动调整账号配额
+            if (type === 'unlimited') {
+                createForm.value.account_limit = 0;
+            } else if (createForm.value.account_limit === 0) {
+                createForm.value.account_limit = 5;
+            }
+        };
+
+        const handleCreateSubmit = async () => {
+            creating.value = true;
+            try {
+                const response = await axios.post('/admin/api/keys/create', null, {
+                    params: createForm.value
+                });
+
+                createdCount.value = response.data.count;
+                keyPreview.value = response.data.preview;
+                previewDialogVisible.value = true;
+                createDialogVisible.value = false;
+
+                // 重置表单
+                createForm.value = {
+                    key_type: 'limited',
+                    count: 10,
+                    duration_days: 30,
+                    account_limit: 5,
+                    notes: ''
+                };
+
+                loadKeys();
+                ElMessage.success('密钥创建成功');
+            } catch (error) {
+                ElMessage.error('创建失败: ' + (error.response?.data?.detail || error.message));
+            } finally {
+                creating.value = false;
+            }
+        };
+
+        const handleColumnSort = (field, event) => {
+            const isMulti = event.shiftKey;
+            const idx = currentSort.value.findIndex(s => s.field === field);
+            
+            if (!isMulti) {
+                // 单列排序：三态切换
+                if (idx === -1) {
+                    currentSort.value = [{ field, dir: 'desc' }];
+                } else if (currentSort.value[idx].dir === 'desc') {
+                    currentSort.value = [{ field, dir: 'asc' }];
+                } else {
+                    currentSort.value = [];
+                }
+            } else {
+                // 多列排序：Shift+点击
+                if (idx === -1) {
+                    currentSort.value.push({ field, dir: 'desc' });
+                } else if (currentSort.value[idx].dir === 'desc') {
+                    currentSort.value[idx].dir = 'asc';
+                } else {
+                    currentSort.value.splice(idx, 1);
+                }
+            }
+            
+            currentPage.value = 1;
+            loadKeys();
+        };
+        
+        const getSortIcon = (field) => {
+            const sort = currentSort.value.find(s => s.field === field);
+            return sort ? sort.dir : '';
+        };
+
+        const removeSort = (field) => {
+            currentSort.value = currentSort.value.filter(s => s.field !== field);
+            loadKeys();
+        };
+
+        const copyKey = (key) => {
+            navigator.clipboard.writeText(key).then(() => {
+                ElMessage.success('复制成功');
+            });
+        };
+
+        const copyKeys = () => {
+            navigator.clipboard.writeText(keyPreview.value).then(() => {
+                ElMessage.success('复制成功');
+            });
+        };
+
+        const downloadKeysTxt = () => {
+            const blob = new Blob([keyPreview.value], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'keys_' + new Date().getTime() + '.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        const truncate = (str, maxLen) => {
+            if (!str) return '-';
+            if (str.length <= maxLen) return str;
+            return str.substring(0, maxLen) + '...';
+        };
+
+        const formatDateTime = (dateTimeStr) => {
+            if (!dateTimeStr) return '-';
+
+            // 后端存的是 naive UTC 时间，这里补一个 Z 让浏览器按 UTC 解析
+            let iso = dateTimeStr;
+            if (dateTimeStr.includes('T') && !dateTimeStr.endsWith('Z')) {
+                iso = dateTimeStr + 'Z';
+            }
+
+            const dt = new Date(iso);
+            if (!isNaN(dt.getTime())) {
+                const pad = (n) => n.toString().padStart(2, '0');
+                const y = dt.getFullYear();
+                const m = pad(dt.getMonth() + 1);
+                const d = pad(dt.getDate());
+                const hh = pad(dt.getHours());
+                const mm = pad(dt.getMinutes());
+                const ss = pad(dt.getSeconds());
+                return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+            }
+
+            // 解析失败时回退到简单拆分 T 的逻辑
+            if (dateTimeStr.includes('T')) {
+                const parts = dateTimeStr.split('T');
+                const date = parts[0];
+                const time = parts[1].split('.')[0];
+                return `${date} ${time}`;
+            }
+            return dateTimeStr;
+        };
+
+        const getRemainingTimeColor = (time) => {
+            if (!time || time === '-') return '#909399';
+            if (time.includes('已过期')) return '#f56c6c';
+            if (time.includes('小时') || time.includes('分钟')) return '#e6a23c';
+            if (parseInt(time) <= 3) return '#e6a23c';
+            return '#67c23a';
+        };
+
+        const saveColumnPreference = () => {
+            localStorage.setItem('keyVisibleColumns', JSON.stringify(visibleColumns.value));
+        };
+
+        const loadColumnPreference = () => {
+            const saved = localStorage.getItem('keyVisibleColumns');
+            if (saved) {
+                visibleColumns.value = JSON.parse(saved);
+            }
+        };
+
+        onMounted(() => {
+            loadColumnPreference();
+            loadKeys();
+        });
+
+        return {
+            Plus, Refresh, CopyDocument, Download,
+            loading, keys, currentPage, pageSize, total, currentSort,
+            searchForm, dateRange, visibleColumns,
+            createDialogVisible, creating, createForm,
+            previewDialogVisible, keyPreview, createdCount,
+            keyCountText, sortChips, sortChipsDisplay, extraSortCount,
+            loadKeys, handleSearch, handleRefresh, handleClear, handleCreate, handleKeyTypeChange, handleCreateSubmit,
+            handleColumnSort, getSortIcon, removeSort, copyKey, copyKeys, downloadKeysTxt,
+            truncate, formatDateTime, getRemainingTimeColor, saveColumnPreference
+        };
+    }
+}).use(ElementPlus).mount('#keyApp');
+</script>
+{% endblock %}

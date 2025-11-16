@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+
+{% block title %}账号管理 - Windsurf账号池管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title"><i class="bi bi-people"></i> 账号管理</h1>
+</div>
+
+{% raw %}
+<div id="accountApp" v-cloak>
+    <!-- 账号列表 -->
+    <el-card class="box-card">
+        <template #header>
+            <div class="card-header">
+                <span><i class="bi bi-list"></i> 账号列表 <span style="color: #909399; font-size: 14px; font-weight: 400;">{{ accountCountText }}</span></span>
+                <div>
+                    <el-button type="primary" @click="handleUpload" :icon="Upload">上传导入</el-button>
+                    <el-button @click="loadAccounts" :icon="Refresh">刷新</el-button>
+                    <el-select v-model="pageSize" @change="handlePageSizeChange" style="width: 110px; margin-left: 8px;">
+                        <el-option label="10 条/页" :value="10"></el-option>
+                        <el-option label="20 条/页" :value="20"></el-option>
+                        <el-option label="50 条/页" :value="50"></el-option>
+                    </el-select>
+                    <el-dropdown trigger="click" style="margin-left: 8px;">
+                        <el-button>
+                            显示列<i class="el-icon-arrow-down el-icon--right"></i>
+                        </el-button>
+                        <template #dropdown>
+                            <el-dropdown-menu>
+                                <el-checkbox-group v-model="visibleColumns" @change="saveColumnPreference">
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="email">邮箱</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="password">密码</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="api_key">API密钥</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="status">状态</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="created_at">创建时间</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="assigned_at">分配时间</el-checkbox>
+                                    </div>
+                                    <div style="padding: 8px 12px;">
+                                        <el-checkbox label="assigned_to_key">分配给密钥</el-checkbox>
+                                    </div>
+                                </el-checkbox-group>
+                            </el-dropdown-menu>
+                        </template>
+                    </el-dropdown>
+                </div>
+            </div>
+        </template>
+
+        <div style="margin-bottom: 16px;">
+            <el-radio-group v-model="currentStatus" @change="handleStatusChange">
+                <el-radio-button label="">全部</el-radio-button>
+                <el-radio-button label="unused">未使用</el-radio-button>
+                <el-radio-button label="used">已使用</el-radio-button>
+                <el-radio-button label="expired">已过期</el-radio-button>
+            </el-radio-group>
+        </div>
+
+        <!-- 排序Chips -->
+        <div v-if="sortChips.length > 0" style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; color: #909399;">当前排序：</span>
+            <el-tag
+                v-for="(chip, index) in sortChips"
+                :key="index"
+                closable
+                @close="removeSort(chip.field)"
+                style="margin-right: 4px;">
+                {{ chip.label }} {{ chip.dir === 'asc' ? '升序' : '降序' }}
+            </el-tag>
+            <el-tooltip content="提示：点击表头可排序，按住 Shift 点击可多列排序" placement="right">
+                <i class="el-icon-question" style="color: #909399; cursor: help;"></i>
+            </el-tooltip>
+        </div>
+
+        <el-table
+            :data="accounts"
+            v-loading="loading"
+            stripe
+            border
+            style="width: 100%">
+            <el-table-column type="index" label="序号" width="70" align="center"></el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('email')" prop="email" label="邮箱" min-width="220" align="center">
+                <template #default="scope">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <span>{{ scope.row.email }}</span>
+                        <el-button link type="primary" :icon="CopyDocument" @click="copyText(scope.row.email)" size="small"></el-button>
+                    </div>
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('password')" prop="password" label="密码" min-width="160" align="center">
+                <template #default="scope">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <span>{{ scope.row.password }}</span>
+                        <el-button link type="primary" :icon="CopyDocument" @click="copyText(scope.row.password)" size="small"></el-button>
+                    </div>
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('api_key')" prop="api_key" label="API密钥" min-width="200" align="center">
+                <template #default="scope">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <code style="font-size: 0.85rem;">{{ truncate(scope.row.api_key, 30) }}</code>
+                        <el-button link type="primary" :icon="CopyDocument" @click="copyText(scope.row.api_key)" size="small"></el-button>
+                    </div>
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('status')" prop="status" label="状态" width="100" align="center">
+                <template #default="scope">
+                    <el-tag v-if="scope.row.status === 'used'" type="success">已使用</el-tag>
+                    <el-tag v-else-if="scope.row.status === 'expired'" type="danger">已过期</el-tag>
+                    <el-tag v-else type="info">未使用</el-tag>
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('created_at')" prop="created_at" min-width="170" align="center">
+                <template #header>
+                    <div @click="handleColumnSort('created_at', $event)" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <span>创建时间</span>
+                        <span v-if="getSortIcon('created_at') === 'asc'" style="color: #409EFF;">▲</span>
+                        <span v-else-if="getSortIcon('created_at') === 'desc'" style="color: #409EFF;">▼</span>
+                        <span v-else style="color: #C0C4CC;">⇅</span>
+                    </div>
+                </template>
+                <template #default="scope">
+                    {{ formatDateTime(scope.row.created_at) }}
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('assigned_at')" prop="assigned_at" min-width="170" align="center">
+                <template #header>
+                    <div @click="handleColumnSort('assigned_at', $event)" style="cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        <span>分配时间</span>
+                        <span v-if="getSortIcon('assigned_at') === 'asc'" style="color: #409EFF;">▲</span>
+                        <span v-else-if="getSortIcon('assigned_at') === 'desc'" style="color: #409EFF;">▼</span>
+                        <span v-else style="color: #C0C4CC;">⇅</span>
+                    </div>
+                </template>
+                <template #default="scope">
+                    {{ formatDateTime(scope.row.assigned_at) }}
+                </template>
+            </el-table-column>
+
+            <el-table-column v-if="visibleColumns.includes('assigned_to_key')" prop="assigned_to_key" label="分配给密钥" min-width="200" align="center">
+                <template #default="scope">
+                    <code v-if="scope.row.assigned_to_key" style="font-size: 0.85rem;">{{ truncate(scope.row.assigned_to_key, 20) }}</code>
+                    <span v-else>-</span>
+                </template>
+            </el-table-column>
+        </el-table>
+
+        <div style="margin-top: 16px; display: flex; justify-content: center;">
+            <el-pagination
+                v-model:current-page="currentPage"
+                :page-size="pageSize"
+                :total="total"
+                layout="prev, pager, next, total"
+                @current-change="loadAccounts"
+            />
+        </div>
+    </el-card>
+
+    <!-- 上传账号对话框 -->
+    <el-dialog v-model="uploadDialogVisible" title="上传账号批量文件" width="600px">
+        <el-upload
+            ref="uploadRef"
+            :auto-upload="false"
+            :multiple="true"
+            :file-list="fileList"
+            :on-change="handleFileChange"
+            accept=".txt">
+            <template #trigger>
+                <el-button type="primary">选择文件</el-button>
+            </template>
+            <template #tip>
+                <div style="color: #909399; font-size: 12px; margin-top: 8px;">
+                    支持格式：.txt 文件，中英文格式均可（邮箱/Email、姓名/Name、密码/Password、API密钥/API Key），支持多文件
+                </div>
+            </template>
+        </el-upload>
+        <template #footer>
+            <el-button @click="uploadDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="handleUploadSubmit" :loading="uploading">上传</el-button>
+        </template>
+    </el-dialog>
+</div>
+{% endraw %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const { createApp, ref, computed, onMounted } = Vue;
+const { ElMessage } = ElementPlus;
+
+createApp({
+    setup() {
+        // 图标
+        const Refresh = ElementPlusIconsVue.Refresh;
+        const Upload = ElementPlusIconsVue.Upload;
+        const CopyDocument = ElementPlusIconsVue.CopyDocument;
+
+        // 数据
+        const loading = ref(false);
+        const accounts = ref([]);
+        const currentPage = ref(1);
+        const pageSize = ref(10);
+        const total = ref(0);
+        const currentStatus = ref('');
+        const currentSort = ref([{ field: 'created_at', dir: 'desc' }]);
+
+        // 显示列
+        const visibleColumns = ref(['email', 'api_key', 'status', 'assigned_at', 'assigned_to_key']);
+
+        // 上传对话框
+        const uploadDialogVisible = ref(false);
+        const uploading = ref(false);
+        const uploadRef = ref(null);
+        const fileList = ref([]);
+
+        // 计算属性
+        const accountCountText = computed(() => {
+            if (total.value === 0) return '';
+            const statusText = currentStatus.value ? 
+                (currentStatus.value === 'used' ? '已使用' : 
+                 currentStatus.value === 'unused' ? '未使用' : '已过期') : '全部';
+            return `${statusText} ${total.value} 个`;
+        });
+
+        const sortChips = computed(() => {
+            const labels = {
+                created_at: '创建时间',
+                assigned_at: '分配时间'
+            };
+            return currentSort.value.map(s => ({
+                field: s.field,
+                label: labels[s.field] || s.field,
+                dir: s.dir
+            }));
+        });
+
+        // 方法
+        const loadAccounts = async () => {
+            loading.value = true;
+            try {
+                const params = {
+                    page: currentPage.value,
+                    page_size: pageSize.value
+                };
+
+                if (currentStatus.value) params.status = currentStatus.value;
+                if (currentSort.value.length > 0) {
+                    params.sort = currentSort.value.map(s => `${s.field}:${s.dir}`).join(',');
+                }
+
+                const response = await axios.get('/admin/api/accounts/list', { params });
+                
+                // 确保 accounts 是数组
+                accounts.value = Array.isArray(response.data.accounts) ? response.data.accounts : [];
+                total.value = response.data.total || 0;
+            } catch (error) {
+                ElMessage.error('加载失败: ' + (error.response?.data?.detail || error.message));
+            } finally {
+                loading.value = false;
+            }
+        };
+
+        const handleStatusChange = () => {
+            currentPage.value = 1;
+            loadAccounts();
+        };
+
+        const handlePageSizeChange = () => {
+            currentPage.value = 1;
+            loadAccounts();
+        };
+
+        const handleUpload = () => {
+            uploadDialogVisible.value = true;
+            fileList.value = [];
+        };
+
+        const handleFileChange = (file, files) => {
+            fileList.value = files;
+        };
+
+        const handleUploadSubmit = async () => {
+            if (fileList.value.length === 0) {
+                ElMessage.warning('请先选择文件');
+                return;
+            }
+
+            uploading.value = true;
+            try {
+                const formData = new FormData();
+                fileList.value.forEach(file => {
+                    formData.append('files', file.raw);
+                });
+
+                await axios.post('/admin/api/accounts/upload', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+
+                ElMessage.success('上传成功');
+                uploadDialogVisible.value = false;
+                fileList.value = [];
+                loadAccounts();
+            } catch (error) {
+                ElMessage.error('上传失败: ' + (error.response?.data?.detail || error.message));
+            } finally {
+                uploading.value = false;
+            }
+        };
+
+        const handleColumnSort = (field, event) => {
+            const isMulti = event.shiftKey;
+            const idx = currentSort.value.findIndex(s => s.field === field);
+            
+            if (!isMulti) {
+                // 单列排序：三态切换
+                if (idx === -1) {
+                    currentSort.value = [{ field, dir: 'desc' }];
+                } else if (currentSort.value[idx].dir === 'desc') {
+                    currentSort.value = [{ field, dir: 'asc' }];
+                } else {
+                    currentSort.value = [];
+                }
+            } else {
+                // 多列排序：Shift+点击
+                if (idx === -1) {
+                    currentSort.value.push({ field, dir: 'desc' });
+                } else if (currentSort.value[idx].dir === 'desc') {
+                    currentSort.value[idx].dir = 'asc';
+                } else {
+                    currentSort.value.splice(idx, 1);
+                }
+            }
+            
+            currentPage.value = 1;
+            loadAccounts();
+        };
+        
+        const getSortIcon = (field) => {
+            const sort = currentSort.value.find(s => s.field === field);
+            return sort ? sort.dir : '';
+        };
+
+        const removeSort = (field) => {
+            currentSort.value = currentSort.value.filter(s => s.field !== field);
+            loadAccounts();
+        };
+
+        const copyText = (text) => {
+            navigator.clipboard.writeText(text).then(() => {
+                ElMessage.success('复制成功');
+            });
+        };
+
+        const truncate = (str, maxLen) => {
+            if (!str) return '-';
+            if (str.length <= maxLen) return str;
+            return str.substring(0, maxLen) + '...';
+        };
+
+        const formatDateTime = (dateTimeStr) => {
+            if (!dateTimeStr) return '-';
+
+            // 后端存的是 naive UTC 时间，这里补一个 Z 让浏览器按 UTC 解析
+            let iso = dateTimeStr;
+            if (dateTimeStr.includes('T') && !dateTimeStr.endsWith('Z')) {
+                iso = dateTimeStr + 'Z';
+            }
+
+            const dt = new Date(iso);
+            if (!isNaN(dt.getTime())) {
+                const pad = (n) => n.toString().padStart(2, '0');
+                const y = dt.getFullYear();
+                const m = pad(dt.getMonth() + 1);
+                const d = pad(dt.getDate());
+                const hh = pad(dt.getHours());
+                const mm = pad(dt.getMinutes());
+                const ss = pad(dt.getSeconds());
+                return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+            }
+
+            // 解析失败时回退到简单拆分 T 的逻辑
+            if (dateTimeStr.includes('T')) {
+                const parts = dateTimeStr.split('T');
+                const date = parts[0];
+                const time = parts[1].split('.')[0];
+                return `${date} ${time}`;
+            }
+            return dateTimeStr;
+        };
+
+        const saveColumnPreference = () => {
+            localStorage.setItem('accountVisibleColumns', JSON.stringify(visibleColumns.value));
+        };
+
+        const loadColumnPreference = () => {
+            const saved = localStorage.getItem('accountVisibleColumns');
+            if (saved) {
+                visibleColumns.value = JSON.parse(saved);
+            }
+        };
+
+        onMounted(() => {
+            loadColumnPreference();
+            loadAccounts();
+        });
+
+        return {
+            Refresh, Upload, CopyDocument,
+            loading, accounts, currentPage, pageSize, total, currentStatus, currentSort,
+            visibleColumns, uploadDialogVisible, uploading, uploadRef, fileList,
+            accountCountText, sortChips,
+            loadAccounts, handleStatusChange, handlePageSizeChange,
+            handleUpload, handleFileChange, handleUploadSubmit,
+            handleColumnSort, getSortIcon, removeSort, copyText, truncate, formatDateTime, saveColumnPreference
+        };
+    }
+}).use(ElementPlus).mount('#accountApp');
+</script>
+{% endblock %}

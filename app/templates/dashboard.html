@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘 - Windsurf账号池管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title"><i class="bi bi-speedometer2"></i> 数据统计</h1>
+    <div style="display: flex; gap: 20px; align-items: center;">
+        <div style="text-align: center; padding: 8px 16px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">
+            <div style="font-size: 0.75rem; color: #0369a1; margin-bottom: 4px;">账号使用率</div>
+            <div style="font-size: 1.25rem; font-weight: 600; color: #0284c7;">
+                {% if stats.total_accounts > 0 %}
+                    {{ "%.1f"|format((stats.used_accounts / stats.total_accounts * 100)) }}%
+                {% else %}
+                    0%
+                {% endif %}
+            </div>
+        </div>
+        <div style="text-align: center; padding: 8px 16px; background: #fef3c7; border-radius: 8px; border: 1px solid #fde68a;">
+            <div style="font-size: 0.75rem; color: #d97706; margin-bottom: 4px;">密钥激活率</div>
+            <div style="font-size: 1.25rem; font-weight: 600; color: #f59e0b;">
+                {% if stats.total_keys > 0 %}
+                    {{ "%.1f"|format(((stats.active_keys + stats.expired_keys) / stats.total_keys * 100)) }}%
+                {% else %}
+                    0%
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 账号统计 -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">总账号数</div>
+        <div class="stat-value">{{ stats.total_accounts }}</div>
+        <i class="bi bi-people-fill stat-icon"></i>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">可用账号</div>
+        <div class="stat-value" style="color: #27ae60;">{{ stats.unused_accounts }}</div>
+        <i class="bi bi-check-circle stat-icon"></i>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">已使用</div>
+        <div class="stat-value" style="color: #95a5a6;">{{ stats.used_accounts }}</div>
+        <i class="bi bi-x-circle stat-icon"></i>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">已过期</div>
+        <div class="stat-value" style="color: #e74c3c;">{{ stats.expired_accounts }}</div>
+        <i class="bi bi-exclamation-triangle stat-icon"></i>
+    </div>
+</div>
+
+<!-- 密钥统计 -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">总密钥数</div>
+        <div class="stat-value">{{ stats.total_keys }}</div>
+        <i class="bi bi-key-fill stat-icon"></i>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">未激活</div>
+        <div class="stat-value" style="color: #f39c12;">{{ stats.inactive_keys }}</div>
+        <i class="bi bi-clock stat-icon"></i>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">已激活</div>
+        <div class="stat-value" style="color: #27ae60;">{{ stats.active_keys }}</div>
+        <i class="bi bi-check2-circle stat-icon"></i>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-label">已过期</div>
+        <div class="stat-value" style="color: #e74c3c;">{{ stats.expired_keys }}</div>
+        <i class="bi bi-exclamation-circle stat-icon"></i>
+    </div>
+</div>
+
+<!-- 系统状态 -->
+<div class="content-card">
+    <div style="padding: 20px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;">
+        <h4 style="margin-bottom: 10px; color: #1e40af;"><i class="bi bi-info-circle"></i> 系统状态</h4>
+        <p style="margin: 0; color: #1e3a8a;">
+            系统运行正常 | 可用账号 <strong>{{ stats.unused_accounts }}</strong> 个 | 活跃密钥 <strong>{{ stats.active_keys }}</strong> 个
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, date
 import math
+import os
 
 from app.database import get_db
 from app.models import Account, Key, AccountStatus, KeyStatus, KeyType
@@ -10,6 +11,9 @@ from app.auth import get_api_key
 from app.utils import calculate_remaining_time
 
 router = APIRouter(prefix="/api/client", tags=["客户端"])
+
+# 从环境变量读取账号过期天数配置，默认为6天
+ACCOUNT_EXPIRY_DAYS = int(os.getenv("ACCOUNT_EXPIRY_DAYS", "6"))
 
 @router.post("/account/get", response_model=AccountGetResponse)
 async def get_account(
@@ -87,11 +91,11 @@ async def get_account(
     
     # === 获取账号 ===
     
-    # 自动将创建时间超过6天的未使用账号设置为过期
-    six_days_ago = now - timedelta(days=6)
+    # 自动将创建时间超过指定天数的未使用账号设置为过期
+    expiry_threshold = now - timedelta(days=ACCOUNT_EXPIRY_DAYS)
     expired_accounts = db.query(Account).filter(
         Account.status == AccountStatus.unused,
-        Account.created_at < six_days_ago
+        Account.created_at < expiry_threshold
     ).update({Account.status: AccountStatus.expired}, synchronize_session=False)
     
     if expired_accounts > 0:

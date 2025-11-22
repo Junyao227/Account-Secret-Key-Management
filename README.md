@@ -225,6 +225,7 @@ Account-Secret-Key-Management/
 | `ADMIN_PASSWORD` | 管理员密码 | `your_secure_password` |
 | `SECRET_KEY` | 应用密钥 | `random-secret-key` |
 | `INTERNAL_UPLOAD_TOKEN` | 内部上传令牌 | `your-internal-token` |
+| `ACCOUNT_EXPIRY_DAYS` | 未使用账号自动过期天数 | `6` |
 
 ## 管理功能说明
 
@@ -248,7 +249,7 @@ Account-Secret-Key-Management/
 ### 账号管理
 - **上传账号**：批量导入账号文件
 - **账号状态**：
-  - `unused`：未使用（创建超过6天自动过期）
+  - `unused`：未使用（创建超过指定天数自动过期，默认6天，可通过 `ACCOUNT_EXPIRY_DAYS` 环境变量配置）
   - `used`：已分配
   - `expired`：已过期
 - **查看详情**：查看账号分配记录
